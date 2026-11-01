@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Observatoire des droits humains</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700&display=swap">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="style.css">
+  <!-- Bibliothèques d'export et graphiques -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+  <!-- ===== CONNEXION DÉSACTIVÉE POUR LES TESTS (retirer ce commentaire pour réactiver) =====
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-card">
+      <h2>Connexion à l'Observatoire</h2>
+      <p class="sub">Accédez à votre espace sécurisé</p>
+      <form id="authForm">
+        <label>Email <input type="email" id="authEmail" required></label>
+        <label>Mot de passe <input type="password" id="authPassword" required></label>
+        <button class="btn" type="submit">Se connecter</button>
+      </form>
+      <div id="authError" class="auth-error"></div>
+    </div>
+  </div>
+
+  ===== FIN DU BLOC DE CONNEXION ===== -->
+
+  <!-- Test : application visible directement. Original : style="display:none;" -->
+  <div class="wrap" id="appContent">
+    <header class="top-bar">
+      <div>
+        <h1>Observatoire des droits humains</h1>
+        <p class="sub">Enregistrez, suivez et analysez les cas de violation signalés.</p>
+      </div>
+      <!-- Connexion désactivée : <button class="btn ghost sm" id="btnLogout">Déconnexion</button> -->
+    </header>
+
+    <div class="note"><b>Sécurité et confidentialité :</b> Les données sont chiffrées et stockées de manière sécurisée
+      sur Supabase.</div>
+
+    <!-- Tableau de bord Statistiques (Chart.js) -->
+    <div class="stats" id="stats"></div>
+
+    <div class="panel cols">
+      <div>
+        <h2>Cas par type de violation</h2>
+        <div class="chart-container"><canvas id="chartType"></canvas></div>
+      </div>
+      <div>
+        <h2>Cas par statut</h2>
+        <div class="chart-container"><canvas id="chartStatus"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Cartographie interactive (Leaflet) -->
+    <div class="panel">
+      <h2>Carte des violations</h2>
+      <div id="map" style="height: 350px; border-radius: 4px;"></div>
+    </div>
+
+    <!-- Formulaire d'enregistrement -->
+    <div class="panel">
+      <h2>Enregistrer un nouveau cas</h2>
+      <form id="caseForm">
+        <label>Code du dossier<input name="code" required maxlength="30" placeholder="ex. KIN-2026-014"></label>
+        <label>Date des faits<input type="date" name="date" required></label>
+        <label>Lieu (ex: Goma, Beni)<input name="lieu" required maxlength="80" id="inputLieu"></label>
+        <input type="hidden" name="lat" id="inputLat">
+        <input type="hidden" name="lng" id="inputLng">
+        <label>Type de violation<select name="type" id="selType"></select></label>
+        <label>Gravité
+          <select name="grav">
+            <option value="1">Faible</option>
+            <option value="2">Modérée</option>
+            <option value="3" selected>Grave</option>
+            <option value="4">Critique</option>
+          </select>
+        </label>
+        <label>Nombre de victimes<input type="number" name="n" min="0" value="1"></label>
+        <label>Source de l'information
+          <select name="src">
+            <option>Témoin direct</option>
+            <option>Victime</option>
+            <option>Organisation partenaire</option>
+            <option>Médias</option>
+            <option>Autre</option>
+          </select>
+        </label>
+        <label>Statut<select name="statut" id="selStatut"></select></label>
+        <label class="full">Pièce jointe (Rapport, photo, preuve)<input type="file" name="attachment"
+            id="inputAttachment"></label>
+        <label class="full">Votre nom ou pseudonyme (facultatif)<input name="auteur" maxlength="60"
+            autocomplete="off"></label>
+        <label class="full">Noms des victimes (confidentiel, un par ligne)<textarea name="noms" maxlength="1000"
+            autocomplete="off"></textarea></label>
+        <label class="full">Résumé des faits<textarea name="desc" required maxlength="800"></textarea></label>
+        <div class="row full">
+          <button class="btn" type="submit">Enregistrer le cas</button>
+          <button class="btn ghost" type="reset">Effacer</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Liste et filtres des dossiers -->
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">Dossiers enregistrés</h2>
+        <div class="row">
+          <label style="flex-direction:row;align-items:center;gap:6px">
+            <input type="checkbox" id="incNames" style="width:auto">Inclure les noms
+          </label>
+          <button class="btn ghost sm" id="btnXls">Exporter en Excel</button>
+          <button class="btn ghost sm" id="btnPdf">Exporter en PDF</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Rechercher..." aria-label="Rechercher">
+        <select id="fType" aria-label="Filtrer par type"></select>
+        <select id="fStatut" aria-label="Filtrer par statut"></select>
+        <select id="fGrav" aria-label="Filtrer par gravité">
+          <option value="">Toutes gravités</option>
+          <option value="1">Faible</option>
+          <option value="2">Modérée</option>
+          <option value="3">Grave</option>
+          <option value="4">Critique</option>
+        </select>
+      </div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- Application principale modulaire -->
+  <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
